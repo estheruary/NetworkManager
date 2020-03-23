@@ -196,6 +196,9 @@ static const Option master_options[] = {
 	{ NM_SETTING_BRIDGE_MULTICAST_SNOOPING, "multicast_snooping",
 	                                        0, 1, 1,
 	                                        FALSE, FALSE, FALSE },
+	{ NM_SETTING_BRIDGE_GROUP_ADDRESS,      "group_addr",
+	                                        0, 0, 0,
+	                                        FALSE, FALSE, FALSE },
 	{ NULL, NULL }
 };
 
@@ -217,8 +220,7 @@ commit_option (NMDevice *device, NMSetting *setting, const Option *option, gbool
 {
 	int ifindex = nm_device_get_ifindex (device);
 	GParamSpec *pspec;
-	GValue val = G_VALUE_INIT;
-	guint32 uval = 0;
+	nm_auto_unset_gvalue GValue val = G_VALUE_INIT;
 	char value[100];
 
 	g_assert (setting);
@@ -229,33 +231,48 @@ commit_option (NMDevice *device, NMSetting *setting, const Option *option, gbool
 	/* Get the property's value */
 	g_value_init (&val, G_PARAM_SPEC_VALUE_TYPE (pspec));
 	g_object_get_property ((GObject *) setting, option->name, &val);
-	if (G_VALUE_HOLDS_BOOLEAN (&val))
-		uval = g_value_get_boolean (&val) ? 1 : 0;
-	else if (G_VALUE_HOLDS_UINT (&val)) {
-		uval = g_value_get_uint (&val);
 
-		/* zero means "unspecified" for some NM properties but isn't in the
-		 * allowed kernel range, so reset the property to the default value.
-		 */
-		if (option->default_if_zero && uval == 0) {
-			g_value_unset (&val);
-			g_value_init (&val, G_PARAM_SPEC_VALUE_TYPE (pspec));
-			g_param_value_set_default (pspec, &val);
-			uval = g_value_get_uint (&val);
-		}
+	switch (pspec->value_type) {
+		case G_TYPE_BOOLEAN:
+			nm_sprintf_buf (value, "%d", (int)(!!g_value_get_boolean (&val)));
+			break;
+		case G_TYPE_UINT: {
+				guint32 uval = g_value_get_uint (&val);
 
-		/* Linux kernel bridge interfaces use 'centiseconds' for time-based values.
-		 * In reality it's not centiseconds, but depends on HZ and USER_HZ, which
-		 * is almost always works out to be a multiplier of 100, so we can assume
-		 * centiseconds.  See clock_t_to_jiffies().
-		 */
-		if (option->user_hz_compensate)
-			uval *= 100;
-	} else
-		nm_assert_not_reached ();
-	g_value_unset (&val);
+				/* zero means "unspecified" for some NM properties but isn't in the
+				 * allowed kernel range, so reset the property to the default value.
+				 */
+				if (option->default_if_zero && uval == 0) {
+					g_value_unset (&val);
+					g_value_init (&val, G_PARAM_SPEC_VALUE_TYPE (pspec));
+					g_param_value_set_default (pspec, &val);
+					uval = g_value_get_uint (&val);
+				}
 
-	nm_sprintf_buf (value, "%u", uval);
+				/* Linux kernel bridge interfaces use 'centiseconds' for time-based values.
+				 * In reality it's not centiseconds, but depends on HZ and USER_HZ, which
+				 * is almost always works out to be a multiplier of 100, so we can assume
+				 * centiseconds.  See clock_t_to_jiffies().
+				 */
+				if (option->user_hz_compensate)
+					uval *= 100;
+
+				nm_sprintf_buf (value, "%u", uval);
+			}
+			break;
+		case G_TYPE_STRING: {
+				const char *svalue = g_value_get_string (&val);
+
+				if (!svalue)
+					return;
+				nm_sprintf_buf (value, "%s", svalue);
+			}
+			break;
+		default:
+			nm_assert_not_reached ();
+			break;
+	}
+
 	if (slave)
 		nm_platform_sysctl_slave_set_option (nm_device_get_platform (device), ifindex, option->sysname, value);
 	else
@@ -320,6 +337,8 @@ update_connection (NMDevice *device, NMConnection *connection)
 	const Option *option;
 	gs_free char *stp = NULL;
 	int stp_value;
+	GParamSpec *pspec;
+	GValue value = G_VALUE_INIT;
 
 	if (!s_bridge) {
 		s_bridge = (NMSettingBridge *) nm_setting_bridge_new ();
@@ -336,26 +355,53 @@ update_connection (NMDevice *device, NMConnection *connection)
 
 	for (; option->name; option++) {
 		gs_free char *str = nm_platform_sysctl_master_get_option (nm_device_get_platform (device), ifindex, option->sysname);
-		uint value;
+		pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (s_bridge), option->name);
 
 		if (!stp_value && option->only_with_stp)
 			continue;
 
 		if (str) {
-			/* See comments in set_sysfs_uint() about centiseconds. */
-			if (option->user_hz_compensate) {
-				value = _nm_utils_ascii_str_to_int64 (str, 10,
-				                                      option->nm_min * 100,
-				                                      option->nm_max * 100,
-				                                      option->nm_default * 100);
-				value /= 100;
-			} else {
-				value = _nm_utils_ascii_str_to_int64 (str, 10,
-				                                      option->nm_min,
-				                                      option->nm_max,
-				                                      option->nm_default);
+			g_value_init (&value, G_PARAM_SPEC_VALUE_TYPE (pspec));
+
+			switch (pspec->value_type) {
+			case G_TYPE_UINT: {
+					guint uvalue;
+
+					/* See comments in set_sysfs_uint() about centiseconds. */
+					if (option->user_hz_compensate) {
+						uvalue = _nm_utils_ascii_str_to_int64 (str, 10,
+						                                       option->nm_min * 100,
+						                                       option->nm_max * 100,
+						                                       option->nm_default * 100);
+						uvalue /= 100;
+					} else {
+						uvalue = _nm_utils_ascii_str_to_int64 (str, 10,
+						                                       option->nm_min,
+						                                       option->nm_max,
+						                                       option->nm_default);
+					}
+					g_value_set_uint (&value, uvalue);
+				}
+				break;
+			case G_TYPE_BOOLEAN: {
+					gboolean bvalue;
+					bvalue = _nm_utils_ascii_str_to_int64 (str, 10,
+					                                       option->nm_min,
+					                                       option->nm_max,
+					                                       option->nm_default);
+					g_value_set_boolean (&value, bvalue);
+				}
+				break;
+			case G_TYPE_STRING:
+				g_value_set_string (&value, str);
+				break;
+			default:
+				nm_assert_not_reached();
+				break;
 			}
-			g_object_set (s_bridge, option->name, value, NULL);
+
+			g_object_set_property (G_OBJECT (s_bridge), option->name, &value);
+			g_value_unset (&value);
 		} else
 			_LOGW (LOGD_BRIDGE, "failed to read bridge setting '%s'", option->sysname);
 	}

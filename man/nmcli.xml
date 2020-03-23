@@ -1937,6 +1937,7 @@ It's equivalent to the <literal>+bond.options 'option=value'</literal> syntax.</
       <row><entry align="left">hello-time</entry><entry align="left"><link linkend="nm-settings.property.bridge.hello-time">bridge.hello-time</link></entry></row>
       <row><entry align="left">max-age</entry><entry align="left"><link linkend="nm-settings.property.bridge.max-age">bridge.max-age</link></entry></row>
       <row><entry align="left">ageing-time</entry><entry align="left"><link linkend="nm-settings.property.bridge.ageing-time">bridge.ageing-time</link></entry></row>
+      <row><entry align="left">group-address</entry><entry align="left"><link linkend="nm-settings.property.bridge.group-address">bridge.group-address</link></entry></row>
       <row><entry align="left">group-forward-mask</entry><entry align="left"><link linkend="nm-settings.property.bridge.group-forward-mask">bridge.group-forward-mask</link></entry></row>
       <row><entry align="left">multicast-snooping</entry><entry align="left"><link linkend="nm-settings.property.bridge.multicast-snooping">bridge.multicast-snooping</link></entry></row>
       <row><entry align="left">mac</entry><entry align="left"><link linkend="nm-settings.property.bridge.mac-address">bridge.mac-address</link></entry></row>

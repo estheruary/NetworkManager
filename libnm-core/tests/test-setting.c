@@ -1874,6 +1874,102 @@ test_bridge_vlans (void)
 	nm_bridge_vlan_unref (v2);
 }
 
+static void
+create_bridge_connection (NMConnection **con, NMSettingBridge **s_bridge)
+{
+	NMSettingConnection *s_con;
+
+	g_assert (con);
+	g_assert (s_bridge);
+
+	*con = nmtst_create_minimal_connection ("bridge",
+	                                        NULL,
+	                                        NM_SETTING_BOND_SETTING_NAME,
+	                                        &s_con);
+	g_assert (*con);
+	g_assert (s_con);
+
+	g_object_set (s_con, NM_SETTING_CONNECTION_INTERFACE_NAME, "bridge0", NULL);
+
+	*s_bridge = (NMSettingBridge *) nm_setting_bridge_new ();
+	g_assert (*s_bridge);
+
+	nm_connection_add_setting (*con, NM_SETTING (*s_bridge));
+}
+
+#define test_verify_options_bridge(exp, ...) \
+	_test_verify_options_bridge (NM_MAKE_STRV (__VA_ARGS__), exp)
+
+static void
+_test_verify_options_bridge (const char *const *options,
+                             gboolean expected_result)
+{
+	gs_unref_object NMConnection *con = NULL;
+	NMSettingBridge *s_bridge;
+	GError *error = NULL;
+	gboolean success;
+	const char *const *option;
+	guint64 uvalue;
+	gboolean bvalue;
+
+
+	create_bridge_connection (&con, &s_bridge);
+
+	for (option = options; option[0] && option[1]; option += 2) {
+		GParamSpec *pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (s_bridge), option[0]);
+		g_assert (pspec);
+
+		switch (G_PARAM_SPEC_VALUE_TYPE (pspec)) {
+			case G_TYPE_UINT:
+				uvalue = _nm_utils_ascii_str_to_uint64 (option[1], 10, 0, G_MAXUINT64, 0);
+				g_object_set (s_bridge, option[0], uvalue, NULL);
+				break;
+			case G_TYPE_BOOLEAN:
+				bvalue = _nm_utils_ascii_str_to_bool (option[1], 0);
+				g_object_set (s_bridge, option[0], bvalue, NULL);
+				break;
+			case G_TYPE_STRING:
+				g_object_set (s_bridge, option[0], option[1], NULL);
+				break;
+			default:
+				g_assert_not_reached();
+				break;
+		}
+	}
+
+	if (expected_result) {
+		nmtst_assert_connection_verifies_and_normalizable (con);
+		nmtst_connection_normalize (con);
+		success = nm_setting_verify ((NMSetting *) s_bridge, con, &error);
+		nmtst_assert_success (success, error);
+	} else {
+		nmtst_assert_connection_unnormalizable (con,
+		                                        NM_CONNECTION_ERROR,
+		                                        NM_CONNECTION_ERROR_INVALID_PROPERTY);
+	}
+}
+
+static void
+test_bridge_verify (void)
+{
+	test_verify_options_bridge (FALSE,
+	                            "group-address", "nonsense");
+	test_verify_options_bridge (FALSE,
+	                            "group-address", "FF:FF:FF:FF:FF:FF");
+	test_verify_options_bridge (FALSE,
+	                            "group-address", "01:02:03:04:05:06");
+	test_verify_options_bridge (TRUE,
+	                            "group-address", "01:80:C2:00:00:00");
+	test_verify_options_bridge (FALSE,
+	                            "group-address", "01:80:C2:00:00:02");
+	test_verify_options_bridge (FALSE,
+	                            "group-address", "01:80:C2:00:00:03");
+	test_verify_options_bridge (TRUE,
+	                            "group-address", "01:80:C2:00:00:00");
+	test_verify_options_bridge (TRUE,
+	                            "group-address", "01:80:C2:00:00:0A");
+}
+
 /*****************************************************************************/
 
 static void
@@ -3653,6 +3749,7 @@ main (int argc, char **argv)
 	g_test_add_func ("/libnm/settings/tc_config/dbus", test_tc_config_dbus);
 
 	g_test_add_func ("/libnm/settings/bridge/vlans", test_bridge_vlans);
+	g_test_add_func ("/libnm/settings/bridge/verify", test_bridge_verify);
 
 	g_test_add_func ("/libnm/settings/team/sync_runner_from_config_roundrobin",
 	                 test_runner_roundrobin_sync_from_config);
