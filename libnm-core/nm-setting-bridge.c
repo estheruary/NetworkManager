@@ -63,9 +63,23 @@ typedef struct {
 	bool stp:1;
 } NMSettingBridgePrivate;
 
+/**
+ * NMSettingBridge:
+ *
+ * Bridging Settings
+ */
+struct _NMSettingBridge {
+	NMSetting parent;
+	NMSettingBridgePrivate _priv;
+};
+
+struct _NMSettingBridgeClass {
+	NMSettingClass parent;
+};
+
 G_DEFINE_TYPE (NMSettingBridge, nm_setting_bridge, NM_TYPE_SETTING)
 
-#define NM_SETTING_BRIDGE_GET_PRIVATE(o) (G_TYPE_INSTANCE_GET_PRIVATE ((o), NM_TYPE_SETTING_BRIDGE, NMSettingBridgePrivate))
+#define NM_SETTING_BRIDGE_GET_PRIVATE(self) _NM_GET_PRIVATE (self, NMSettingBridge, NM_IS_SETTING_BRIDGE, NMSetting)
 
 /*****************************************************************************/
 
