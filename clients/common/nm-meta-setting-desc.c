@@ -1898,6 +1898,7 @@ _set_fcn_optionlist (ARGS_SET_FCN)
 {
 	gs_free const char **strv = NULL;
 	gs_free const char **strv_val = NULL;
+	gsize strv_len;
 	gsize i, nstrv;
 
 	nm_assert (!error || !*error);
@@ -1906,24 +1907,24 @@ _set_fcn_optionlist (ARGS_SET_FCN)
 		return _gobject_property_reset_default (setting, property_info->property_name);
 
 	nstrv = 0;
-	strv = nm_utils_strsplit_set (value, ",");
+	strv = _value_strsplit (value, VALUE_STRSPLIT_MODE_OBJLIST, &strv_len);
 	if (strv) {
-		strv_val = g_new (const char *, NM_PTRARRAY_LEN (strv));
+		strv_val = g_new (const char *, strv_len);
 		for (i = 0; strv[i]; i++) {
-			const char *opt_name;
+			const char *opt_name = strv[i];
 			const char *opt_value;
 
-			opt_name = nm_str_skip_leading_spaces (strv[i]);
+			nm_assert (opt_name[0]);
+			nm_assert (nm_str_is_stripped (opt_name));
 
 			/* FIXME: support backslash escaping for the option list. */
 			opt_value = strchr (opt_name, '=');
 			if (opt_value) {
 				((char *) opt_value)[0] = '\0';
-				opt_value++;
-				opt_value = nm_str_skip_leading_spaces (opt_value);
-				g_strchomp ((char *) opt_value);
+				opt_value = nm_str_skip_leading_spaces (&opt_value[1]);
+				nm_assert (nm_str_is_stripped (opt_value));
+				g_strchomp ((char *) opt_name);
 			}
-			g_strchomp ((char *) opt_name);
 
 			if (   property_info->property_type->values_fcn
 			    || property_info->property_typ_data->values_static) {
