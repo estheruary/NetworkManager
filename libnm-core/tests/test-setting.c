@@ -1952,6 +1952,7 @@ _test_verify_options_bridge (const char *const *options,
 static void
 test_bridge_verify (void)
 {
+	/* group-address */
 	test_verify_options_bridge (FALSE,
 	                            "group-address", "nonsense");
 	test_verify_options_bridge (FALSE,
@@ -1968,6 +1969,17 @@ test_bridge_verify (void)
 	                            "group-address", "01:80:C2:00:00:00");
 	test_verify_options_bridge (TRUE,
 	                            "group-address", "01:80:C2:00:00:0A");
+	/* vlan-protocol */
+	test_verify_options_bridge (FALSE,
+	                            "vlan-protocol", "nonsense124");
+	test_verify_options_bridge (FALSE,
+	                            "vlan-protocol", "802.11");
+	test_verify_options_bridge (FALSE,
+	                            "vlan-protocol", "802.1Q1");
+	test_verify_options_bridge (TRUE,
+	                            "vlan-protocol", "802.1Q");
+	test_verify_options_bridge (TRUE,
+	                            "vlan-protocol", "802.1ad");
 }
 
 /*****************************************************************************/

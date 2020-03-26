@@ -158,6 +158,19 @@ complete_connection (NMDevice *device,
 	return TRUE;
 }
 
+static const char *
+vlan_protocol_str_to_proto (const char *protocol)
+{
+	g_return_val_if_fail (protocol, NULL);
+
+	if (nm_streq (protocol, "802.1Q"))
+		return G_STRINGIFY(ETH_P_8021Q);
+	else if (nm_streq (protocol, "802.1ad"))
+		return G_STRINGIFY(ETH_P_8021AD);
+
+	g_return_val_if_reached (NULL);
+}
+
 /*****************************************************************************/
 
 typedef struct {
@@ -169,6 +182,7 @@ typedef struct {
 	bool default_if_zero;
 	bool user_hz_compensate;
 	bool only_with_stp;
+	const char * (*value_transformer)(const char *value);
 } Option;
 
 static const Option master_options[] = {
@@ -199,6 +213,9 @@ static const Option master_options[] = {
 	{ NM_SETTING_BRIDGE_GROUP_ADDRESS,      "group_addr",
 	                                        0, 0, 0,
 	                                        FALSE, FALSE, FALSE },
+	{ NM_SETTING_BRIDGE_VLAN_PROTOCOL,      "vlan_protocol",
+	                                        0, 0, 0,
+	                                        FALSE, FALSE, FALSE, vlan_protocol_str_to_proto },
 	{ NULL, NULL }
 };
 
@@ -274,9 +291,15 @@ commit_option (NMDevice *device, NMSetting *setting, const Option *option, gbool
 	}
 
 	if (slave)
-		nm_platform_sysctl_slave_set_option (nm_device_get_platform (device), ifindex, option->sysname, value);
+		nm_platform_sysctl_slave_set_option (nm_device_get_platform (device),
+		                                     ifindex,
+		                                     option->sysname,
+		                                     option->value_transformer ? option->value_transformer (value) : value);
 	else
-		nm_platform_sysctl_master_set_option (nm_device_get_platform (device), ifindex, option->sysname, value);
+		nm_platform_sysctl_master_set_option (nm_device_get_platform (device),
+		                                      ifindex,
+		                                      option->sysname,
+		                                      option->value_transformer ? option->value_transformer (value) : value);
 }
 
 static const NMPlatformBridgeVlan **
