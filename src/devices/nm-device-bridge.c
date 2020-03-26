@@ -171,6 +171,21 @@ vlan_protocol_str_to_proto (const char *protocol)
 	g_return_val_if_reached (NULL);
 }
 
+static const char *
+multicast_router_str_to_value (const char *option)
+{
+	g_return_val_if_fail (option, NULL);
+
+	if (nm_streq (option, "disabled"))
+		return "0";
+	else if (nm_streq (option, "auto"))
+		return "1";
+	else if (nm_streq (option, "enabled"))
+		return "2";
+
+	g_return_val_if_reached (NULL);
+}
+
 /*****************************************************************************/
 
 typedef struct {
@@ -210,6 +225,9 @@ static const Option master_options[] = {
 	{ NM_SETTING_BRIDGE_MULTICAST_SNOOPING, "multicast_snooping",
 	                                        0, 1, 1,
 	                                        FALSE, FALSE, FALSE },
+	{ NM_SETTING_BRIDGE_MULTICAST_ROUTER,   "multicast_router",
+	                                        0, 0, 0,
+	                                        FALSE, FALSE, FALSE , multicast_router_str_to_value },
 	{ NM_SETTING_BRIDGE_GROUP_ADDRESS,      "group_addr",
 	                                        0, 0, 0,
 	                                        FALSE, FALSE, FALSE },
