@@ -542,9 +542,31 @@ nm_utils_escaped_tokens_split (const char *str,
 	                                   | NM_UTILS_STRSPLIT_SET_FLAGS_STRSTRIP);
 }
 
-const char *nm_utils_escaped_tokens_escape (const char *str,
-                                            const char *delimiters,
-                                            char **out_to_free);
+typedef enum {
+	NM_UTILS_ESCAPED_TOKENS_ESCAPE_FLAGS_NONE                       = 0,
+	NM_UTILS_ESCAPED_TOKENS_ESCAPE_FLAGS_ESCAPE_SPACES              = (1ull << 0),
+	NM_UTILS_ESCAPED_TOKENS_ESCAPE_FLAGS_ESCAPE_LEADING_SPACE       = (1ull << 1),
+	NM_UTILS_ESCAPED_TOKENS_ESCAPE_FLAGS_ESCAPE_TRAILING_SPACE      = (1ull << 2),
+	NM_UTILS_ESCAPED_TOKENS_ESCAPE_FLAGS_ESCAPE_BACKSLASH_AS_NEEDED = (1ull << 3),
+	NM_UTILS_ESCAPED_TOKENS_ESCAPE_FLAGS_ESCAPE_BACKSLASH_ALWAYS    = (1ull << 4),
+} NMUtilsEscapedTokensEscapeFlags;
+
+const char *nm_utils_escaped_tokens_escape_full (const char *str,
+                                                 const char *delimiters,
+                                                 NMUtilsEscapedTokensEscapeFlags flags,
+                                                 char **out_to_free);
+
+static inline const char *
+nm_utils_escaped_tokens_escape (const char *str,
+                                const char *delimiters,
+                                char **out_to_free)
+{
+	return nm_utils_escaped_tokens_escape_full (str,
+	                                            delimiters,
+	                                              NM_UTILS_ESCAPED_TOKENS_ESCAPE_FLAGS_ESCAPE_BACKSLASH_ALWAYS
+	                                            | NM_UTILS_ESCAPED_TOKENS_ESCAPE_FLAGS_ESCAPE_TRAILING_SPACE,
+	                                            out_to_free);
+}
 
 static inline GString *
 nm_utils_escaped_tokens_escape_gstr_assert (const char *str,
