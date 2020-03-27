@@ -1647,6 +1647,94 @@ nm_utils_escaped_tokens_escape_full (const char *str,
 	return ret;
 }
 
+static gboolean
+_options_split_is_escapable (char ch, gboolean is_key)
+{
+	return   NM_IN_SET (ch, '\\', ',')
+	      || g_ascii_isspace (ch)
+	      || (   is_key
+	          && ch == '=');
+}
+
+static const char *
+_options_split_unescape (char *str, gboolean is_key)
+{
+	gsize i, j;
+	gsize last_space;
+
+	/* we also strip un-escaped leading and trailing whitespace. */
+	str = nm_str_skip_leading_spaces (str);
+	if (!str[0])
+		return str;
+
+	j = 0;
+	last_space = 0;
+	for (i = 0; str[i] != '\0'; ) {
+		if (g_ascii_isspace (str[i])) {
+			if (last_space == 0)
+				last_space = j;
+		} else {
+			last_space = 0;
+			if (   str[i] == '\\'
+			    && _options_split_is_escapable (str[i + 1], is_key))
+				i++;
+		}
+		str[j++] = str[i++];
+	}
+
+	if (last_space != 0)
+		str[last_space] = '\0';
+	else
+		str[j] = '\0';
+
+	return str;
+}
+
+/**
+ * nm_utils_escaped_tokens_options_split:
+ * @src: the src string. This string will be modified in-place.
+ *   The output values will point into @str.
+ * @out_key: (allow-none): the returned output key. This will always be set to @src
+ *   itself. @src will be modified to contain only the unescaped, truncated
+ *   key name.
+ * @out_val: returns the parsed (and unescaped) value or %NULL, if @src contains
+ *   no '=' delimiter.
+ *
+ * Honors backslash escaping to parse @src as "key=value" pairs. Optionally, if no '='
+ * is present, @out_val will be returned as %NULL. Backslash can be used to escape
+ * '=', ',', '\\', and ascii whitespace. Other backslash sequences are taken verbatim.
+ *
+ * Unescaped Space around the key and value are also removed.
+ */
+void
+nm_utils_escaped_tokens_options_split (char *src,
+                                       const char **out_key,
+                                       const char **out_val)
+{
+	char *val;
+
+	nm_assert (src);
+
+	/* find the (unescaped) '=' separator. */
+	val = src;
+	while (!NM_IN_SET (val[0], '\0', '=')) {
+		if (   val[0] == '\\'
+		    && _options_split_is_escapable (val[1], TRUE))
+			val++;
+		val++;
+	}
+
+	if (val[0] == '\0')
+		val = NULL;
+	else {
+		val[0] = '\0';
+		val++;
+	}
+
+	*out_key = _options_split_unescape (src, TRUE);
+	*out_val = val ? _options_split_unescape (val, FALSE) : NULL;
+}
+
 /*****************************************************************************/
 
 /**
